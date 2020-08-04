@@ -1,0 +1,80 @@
+- hosts: 192.168.1.24
+  tasks:
+   - name: Add a yum repositry
+     yum_repository:
+      name: docker
+      description: docker repo
+      baseurl: https://download.docker.com/linux/centos/7/x86_64/stable/
+      gpgcheck: no
+  
+   - name: shows weather docker repo is there or not
+     command: yum repolist
+     register: a
+  
+   - name: display the yum repolist output in screen
+     debug:
+      var: a
+    
+   - name: install docker ce from the rpm
+     package:
+      name: "docker-ce"
+      state: present
+     register: z
+     when: a.failed == false
+
+   - name: start docker services
+     service:
+      name: docker
+      state: started
+      enabled: yes
+
+   - name: install pip3 using dnf
+     package:
+      name: python3-pip
+      state: present
+   
+   - name: install the sdk docker python library
+     pip:
+      name: docker-py
+   
+   - name: Pull the httpd service to launch the website
+     docker_image:
+      name: httpd
+
+      source: pull
+
+   - name: copy my web contents to hosts
+     template:
+      src: /root/ansible/web.html
+      dest: /root/
+
+   - name: allow firewall 
+     firewalld:
+      masquerade: yes
+      permanent: yes
+      state: enabled
+   - name: allow port 88 for webserver
+     firewalld:
+      port: "88/tcp"
+      permanent: yes
+      state: enabled
+   - name: restart firewalld service
+     service:
+      name: "firewalld"
+      state: restarted
+   - name: restart docker service
+     service:
+      name: "docker"
+      state: restarted
+
+   - name: launch the conatiner for hosting the webpage 
+     docker_container:
+      name: "ansible_php_webserver_website"
+      image: "httpd"
+      state: started
+      exposed_ports:
+       - "80"
+      ports:
+       - "88:80"
+      volumes:
+       - /root/:/usr/local/apache2/htdocs
